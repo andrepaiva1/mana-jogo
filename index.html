@@ -168,7 +168,65 @@ button{background:linear-gradient(180deg,#8aed7d,#2fb344);box-shadow:0 5px 0 #1f
   </div>
 </div>
 <div class="ov" id="ov"><div class="card"><h2 id="ot"></h2><p id="ox"></p><em id="oe"></em><br><button id="ob">Continuar</button></div></div>
-<script>
+<script type="module">
+import { Capacitor } from '@capacitor/core';
+import { AdMob, BannerAdSize, BannerAdPosition, MaxAdContentRating } from '@capacitor-community/admob';
+const MANA_TEST_ADS = true;
+const MANA_AD_UNITS = {
+  banner: 'ca-app-pub-3940256099942544/6300978111',
+  interstitial: 'ca-app-pub-3940256099942544/1033173712',
+  rewarded: 'ca-app-pub-3940256099942544/5224354917'
+};
+let manaAdMobReady = false;
+let manaInterstitialCount = 0;
+async function manaInitAds(ageBand) {
+  if (!Capacitor.isNativePlatform() || manaAdMobReady) return;
+  try {
+    await AdMob.initialize({
+      initializeForTesting: true,
+      tagForChildDirectedTreatment: ageBand === 'under13',
+      maxAdContentRating: MaxAdContentRating.General
+    });
+    manaAdMobReady = true;
+    await AdMob.showBanner({
+      adId: MANA_AD_UNITS.banner,
+      adSize: BannerAdSize.ADAPTIVE_BANNER,
+      position: BannerAdPosition.BOTTOM_CENTER,
+      margin: 0,
+      isTesting: MANA_TEST_ADS,
+      npa: true
+    });
+  } catch (err) {
+    console.warn('AdMob não inicializado; o jogo continuará sem anúncios.', err);
+  }
+}
+async function manaShowInterstitial() {
+  if (!manaAdMobReady) return;
+  try {
+    await AdMob.prepareInterstitial({ adId: MANA_AD_UNITS.interstitial, isTesting: MANA_TEST_ADS, npa: true });
+    await AdMob.showInterstitial();
+  } catch (err) {
+    console.warn('Intersticial de teste indisponível.', err);
+  }
+}
+async function manaRewardLife() {
+  if (!manaAdMobReady) {
+    show('Vídeo indisponível', 'O anúncio ainda não está pronto. Tente novamente mais tarde.', 'Nenhuma vida foi adicionada.', 'Voltar ao mapa', () => map());
+    return;
+  }
+  try {
+    await AdMob.prepareRewardVideoAd({ adId: MANA_AD_UNITS.rewarded, isTesting: MANA_TEST_ADS, npa: true });
+    await AdMob.showRewardVideoAd();
+    P.l = Math.min(5, P.l + 1);
+    P.t = Date.now();
+    sv();
+    hud();
+    show('Vida recebida! ❤️', 'Obrigado por assistir ao vídeo de demonstração.', 'Uma vida foi adicionada.', 'Continuar', () => map());
+  } catch (err) {
+    console.warn('Vídeo premiado não concluído ou indisponível.', err);
+    show('Anúncio não concluído', 'Nenhuma vida foi adicionada. Você pode tentar novamente mais tarde.', '', 'Voltar ao mapa', () => map());
+  }
+}
 const N=8,T=['🕊️','🍞','🐟','📖','🕯️','🍇'],HUES=[205,32,180,275,48,325];
 const V=[["No princípio, criou Deus os céus e a terra.","Gênesis 1:1"],["E viu Deus tudo quanto tinha feito, e eis que era muito bom.","Gênesis 1:31"],["O Senhor é o meu pastor; nada me faltará.","Salmos 23:1"],["Os céus declaram a glória de Deus.","Salmos 19:1"],["E soprou-lhe nas narinas o fôlego da vida.","Gênesis 2:7"],["O Senhor pelejará por vós, e vós vos calareis.","Êxodo 14:14"],["O Senhor é a minha força e o meu cântico.","Êxodo 15:2"],["EU SOU O QUE SOU.","Êxodo 3:14"],["Não terás outros deuses diante de mim.","Êxodo 20:3"],["A minha presença irá contigo, e te darei descanso.","Êxodo 33:14"],["Esforça-te e tem bom ânimo; não temas, nem te espantes.","Josué 1:9"],["Eu e a minha casa serviremos ao Senhor.","Josué 24:15"],["Deus é o nosso refúgio e fortaleza.","Salmos 46:1"],["Quando passares pelas águas, estarei contigo.","Isaías 43:2"],["Este é o meu Filho amado, em quem me comprazo.","Mateus 3:17"],["Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito.","João 3:16"],["Vinde a mim, todos os que estais cansados, e eu vos aliviarei.","Mateus 11:28"],["Eu sou o caminho, e a verdade, e a vida.","João 14:6"],["Posso todas as coisas em Cristo que me fortalece.","Filipenses 4:13"],["Todas as coisas contribuem para o bem dos que amam a Deus.","Romanos 8:28"],["Deus limpará dos seus olhos toda a lágrima.","Apocalipse 21:4"],["Elevo os meus olhos para os montes, de onde vem o meu socorro.","Salmos 121:1"],["Agora, pois, permanecem a fé, a esperança e o amor; o maior destes é o amor.","1 Corínvios 13:13"],["Os que esperam no Senhor renovarão as suas forças.","Isaías 40:31"],["A graça do Senhor Jesus Cristo seja com todos vós.","Apocalipse 22:21"]];
 let b,score,moves,goal,lvl=1,NT=5,busy=false,sel=null,st=null,lastSw=[],hT,AC,mute=false;
@@ -221,6 +279,7 @@ function applyAgeBand(band){
   // até que a camada nativa de consentimento/política esteja implementada.
   try { localStorage.setItem('mana_age_band', band); } catch(e) {}
   $('agegate').classList.remove('on');
+  manaInitAds(band);
 }
 document.querySelectorAll('[data-age]').forEach(btn => {
   btn.addEventListener('click', () => applyAgeBand(btn.dataset.age));
@@ -233,7 +292,7 @@ function loseLife(){regen();if(P.l===5)P.t=Date.now();P.l=Math.max(0,P.l-1);sv()
 function glow(L){document.documentElement.style.setProperty('--glow',`hsl(${W[(L-1)/5|0][2]} 80% 60%/.45)`)}
 function map(){$('mp').classList.add('on');$('gm').classList.remove('on');$('hr').innerHTML=hs();prof();glow(P.u);
 $('wl').innerHTML=W.map((w,i)=>`<div class="world" style="--wh:${w[2]};border-color:hsl(${w[2]} 80% 60%);background:hsl(${w[2]} 90% 93%)"><h3>${w[1]} Mundo ${i+1} · ${w[0]}</h3><div class="lvls">${[1,2,3,4,5].map(k=>{const L=i*5+k,lk=L>P.u;return `<button class="nd${lk?' lk':''}${L===P.u?' cur':''}" onclick="play(${L})">${lk?'🔒':L}${P.s[L]?`<small>${'⭐'.repeat(P.s[L])}</small>`:''}</button>`}).join('')}</div></div>`).join('')}
-function play(L){regen();if(L>P.u)return;if(P.l<1){show('Sem vidas 💔','O vídeo para ganhar uma vida ainda não está disponível nesta versão.','Quando o anúncio recompensado real for integrado, a vida será liberada somente após a conclusão do vídeo.','Voltar ao mapa',()=>map());return}
+function play(L){regen();if(L>P.u)return;if(P.l<1){show('Sem vidas 💔','Assista a um vídeo opcional de demonstração para tentar ganhar 1 vida.','A vida só será adicionada se o Google confirmar a recompensa.','Assistir vídeo',()=>manaRewardLife());return}
 lvl=L;glow(L);$('mp').classList.remove('on');$('gm').classList.add('on');start();const v=V[(L-1)%V.length];$('vs').textContent='“'+v[0]+'” — '+v[1];show('Fase '+L+' · Palavra da fase','“'+v[0]+'”',v[1]+' · 🎯 Missão: '+M.tx,'Jogar',()=>{})}
 function stars(){for(let k=0;k<16;k++){const s=document.createElement('span');s.className='st';s.textContent=['☁️','🎈','⭐','🕊️','🌈','🎈'][k%6];s.style.cssText=`left:${Math.random()*95}vw;top:${Math.random()*95}vh;font-size:${24+Math.random()*30}px;animation-delay:${Math.random()*6}s`;document.body.appendChild(s)}}
 const FACE={i:'👼',h:'😇',c:'🤩',s:'😟',l:'😢',w:'🥳'},SAY={h:['Boa!','Isso!','Amém!','Muito bem!'],c:['Aleluia!','Incrível!','Glória!'],s:['Ops, tente outra!','Quase!','Essa não dá!'],l:['Não desista!','Na próxima!'],w:['Vitória! 🙌','Deus abençoe!']};
@@ -267,7 +326,7 @@ const k=$('bd').children,ea=k[a],ec=k[c],dx=ec.offsetLeft-ea.offsetLeft,dy=ec.of
 ea.style.zIndex=2;ea.style.transform=`translate(${dx}px,${dy}px)`;ec.style.transform=`translate(${-dx}px,${-dy}px)`;snd(300,.1,'sine',.45,520);await wait(160);
 sw(a,c);const p=b[a/N|0][a%N]===99?a:b[c/N|0][c%N]===99?c:-1;let F=null;if(p>=0){const q=p===a?c:a,o=b[q/N|0][q%N],ty=B(o),X=new Set([p]);b.forEach((row,r)=>row.forEach((v,cc)=>{if(o===99||B(v)===ty)X.add(r*N+cc)}));X.runs=[];F=X;document.body.insertAdjacentHTML('beforeend','<div class="flash"></div>');setTimeout(()=>document.querySelector('.flash')?.remove(),900);banner('Estrela de Belém! 🌟','b2');chime(523,7);snd(80,.6,'sawtooth',.5,40)}if(!F&&!matches().size){sw(a,c);ea.style.transform=ec.style.transform='';snd(170,.22,'square',.3,80);react('s');await wait(170);busy=false;arm();return}
 render();moves--;hud();await resolve(F);hud();
-if(score>=goal&&M.p>=M.n){const v=V[(lvl-1)%V.length];busy=false;confetti();react('w');const s=moves>=8?3:moves>=4?2:1;P.s[lvl]=Math.max(P.s[lvl]||0,s);if(lvl===P.u)P.u=Math.min(25,P.u+1);P.d=Math.min(12,(P.d||0)+1);const gx=70+s*20+(score/25|0),L0=plv(P.x);P.x+=gx;const up=plv(P.x)>L0;if(up){P.l=5;P.t=Date.now()}sv();pushRank();show((lvl%5?'Fase '+lvl:'Mundo concluído! 🎉')+' '+'⭐'.repeat(s),'“'+v[0]+'”',v[1]+' · +'+gx+' XP'+(up?' · NÍVEL '+plv(P.x)+'! ❤️ vidas recarregadas':''),'Continuar',()=>{lvl<25?play(lvl+1):map()});return}
+if(score>=goal&&M.p>=M.n){const v=V[(lvl-1)%V.length];busy=false;confetti();react('w');const s=moves>=8?3:moves>=4?2:1;P.s[lvl]=Math.max(P.s[lvl]||0,s);if(lvl===P.u)P.u=Math.min(25,P.u+1);P.d=Math.min(12,(P.d||0)+1);const gx=70+s*20+(score/25|0),L0=plv(P.x);P.x+=gx;const up=plv(P.x)>L0;if(up){P.l=5;P.t=Date.now()}sv();pushRank();show((lvl%5?'Fase '+lvl:'Mundo concluído! 🎉')+' '+'⭐'.repeat(s),'“'+v[0]+'”',v[1]+' · +'+gx+' XP'+(up?' · NÍVEL '+plv(P.x)+'! ❤️ vidas recarregadas':''),'Continuar',async()=>{if(lvl<25){manaInterstitialCount++;if(manaInterstitialCount%3===0)await manaShowInterstitial();play(lvl+1)}else map()});return}
 if(moves<=0){busy=false;react('l');loseLife();P.d=Math.max(0,(P.d||0)-1);sv();show('Quase lá!','As jogadas acabaram. Você perdeu 1 vida 💔',score<goal?'Faltaram '+(goal-score)+' pontos':'Missão incompleta: '+M.tx,'Tentar de novo',()=>play(lvl));return}
 busy=false;arm()}
 const adj=(a,c)=>Math.abs((a/N|0)-(c/N|0))+Math.abs(a%N-c%N)===1;
@@ -287,5 +346,7 @@ $('rb').onclick=()=>{$('mp').classList.remove('on');$('rk').classList.add('on');
 $('rbk').onclick=()=>{$('rk').classList.remove('on');map()};
 $('nb').onclick=()=>{const v=$('ni').value.trim().slice(0,12);if(v.length<2)return;P.n=v;sv();pushRank().then(drawRank)};
 start();
+window.play = play;
+window.map = map;
 initAgeGate();
 </script></body></html>
