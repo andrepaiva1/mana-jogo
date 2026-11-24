@@ -1,16 +1,13 @@
-
-name: Gerar APK do Mana
+name: Gerar APK do Mana com AdMob de teste
 
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Baixar codigo
         uses: actions/checkout@v4
@@ -26,42 +23,56 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Preparar projeto
+      - name: Instalar Capacitor, Vite e plugin AdMob
         run: |
-          mkdir -p www
-          cp index.html www/index.html
-
           cat > package.json <<'EOF'
           {
             "name": "mana-jogo",
             "version": "1.0.0",
             "private": true,
-            "scripts": {
-              "build": "echo Projeto preparado"
-            },
+            "scripts": {"build": "vite build"},
             "dependencies": {
-              "@capacitor/core": "^7.0.0",
-              "@capacitor/android": "^7.0.0"
+              "@capacitor/core": "^7.4.3",
+              "@capacitor/android": "^7.4.3",
+              "@capacitor-community/admob": "^7.0.3"
             },
             "devDependencies": {
-              "@capacitor/cli": "^7.0.0"
+              "@capacitor/cli": "^7.4.3",
+              "vite": "^6.4.1"
             }
           }
           EOF
-
           cat > capacitor.config.json <<'EOF'
-          {
-            "appId": "com.mana.jogo",
-            "appName": "Mana",
-            "webDir": "www"
-          }
+          {"appId":"com.mana.jogo","appName":"Mana","webDir":"dist"}
           EOF
-
           npm install
+          npm run build
           npx cap add android
           npx cap sync android
 
-      - name: Gerar APK
+      - name: Configurar App ID de teste do Google
+        run: |
+          mkdir -p android/app/src/main/res/values
+          cat > android/app/src/main/res/values/admob_strings.xml <<'EOF'
+          <resources>
+            <string name="admob_app_id">ca-app-pub-3940256099942544~3347511713</string>
+          </resources>
+          EOF
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/AndroidManifest.xml')
+          s = p.read_text()
+          marker = '<application'
+          meta = '\n        <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="@string/admob_app_id" />'
+          if 'com.google.android.gms.ads.APPLICATION_ID' not in s:
+              s = s.replace(marker, marker + meta, 1)
+          p.write_text(s)
+          PY
+
+      - name: Sincronizar configuracao nativa
+        run: npx cap sync android
+
+      - name: Gerar APK de teste
         run: |
           cd android
           chmod +x gradlew
@@ -70,5 +81,5 @@ jobs:
       - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
         with:
-          name: Mana-APK
+          name: Mana-APK-AdMob-Teste
           path: android/app/build/outputs/apk/debug/app-debug.apk
